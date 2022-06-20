@@ -14,9 +14,16 @@ class TextExplanation:
 
 
 @dataclass
-class TextAndImageExplanation:
+class NNExplanation:
+    prob: float
     text: str
-    image: Image.Image
+    images: [Image.Image]
+
+
+@dataclass
+class NNResult:
+    prob: float
+    images: [Image.Image]
 
 
 class Diagnosis(Enum):

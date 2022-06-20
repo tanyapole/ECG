@@ -2,7 +2,7 @@ import numpy as np
 import ECG.api as api
 from PIL import Image
 from ECG.data_classes import Diagnosis, ElevatedST, Failed, RiskMarkers,\
-    TextExplanation, TextAndImageExplanation
+    TextExplanation, NNExplanation
 from tests.test_util import get_ecg_signal, get_ecg_array, open_image,\
     check_data_type, compare_values
 from typing import Tuple
@@ -14,11 +14,11 @@ def check_text_explanation(explanation, groundtruth_text):
                    "Unexpected explanation", multiline=True)
 
 
-def check_text_image_explanation(explanation, groundtruth_text):
-    check_data_type(explanation, TextAndImageExplanation)
+def check_nn_explanation(explanation, groundtruth_text):
+    check_data_type(explanation, NNExplanation)
     compare_values(explanation.text, groundtruth_text,
                    "Unexpected explanation", multiline=True)
-    assert isinstance(explanation.image, Image.Image)
+    assert len(explanation.images) > 0
 
 
 def _get_NN_test_data(option):
@@ -75,25 +75,29 @@ def test_check_ST_elevation_failure():
 def test_check_ST_elevation_with_NN_present():
     filename = _get_NN_test_data('ste')
     signal = get_ecg_signal(filename)
-    result = api.check_ST_elevation_with_NN(signal)
+    result = api.check_ST_elevation_with_NN(
+        signal, save_path='./ECG/NN_based_approach/imgs'
+    )
     check_data_type(result, Tuple)
     compare_values(len(result), 2, "Wrong tuple length")
     compare_values(result[0], ElevatedST.Present,
                    "Failed to detect significant ST elevation")
     gt_explanation = "Significant ST elevation probability is 0.6342"
-    check_text_image_explanation(result[1], gt_explanation)
+    check_nn_explanation(result[1], gt_explanation)
 
 
 def test_check_ST_elevation_with_NN_absent():
     filename = _get_NN_test_data('normal')
     signal = get_ecg_signal(filename)
-    result = api.check_ST_elevation_with_NN(signal)
+    result = api.check_ST_elevation_with_NN(
+        signal, save_path='./ECG/NN_based_approach/imgs'
+    )
     check_data_type(result, Tuple)
     compare_values(len(result), 2, "Wrong tuple length")
     compare_values(result[0], ElevatedST.Abscent,
                    "Failed to detect absence significant ST elevation")
     gt_explanation = "Significant ST elevation probability is 0.489"
-    check_text_image_explanation(result[1], gt_explanation)
+    check_nn_explanation(result[1], gt_explanation)
 
 
 ###################
@@ -168,42 +172,64 @@ def test_diagnose_with_risk_markers_BER_tuned():
 def test_check_BER_with_NN_positive():
     filename = _get_NN_test_data('ber')
     signal = get_ecg_signal(filename)
-    result = api.check_BER_with_NN(signal)
+    result = api.check_BER_with_NN(signal, save_path='./ECG/NN_based_approach/imgs')
     check_data_type(result, Tuple)
     compare_values(len(result), 2, "Wrong tuple length")
     compare_values(result[0], True, "Failed to recognize BER")
     gt_explanation = "BER probability is 0.8727"
-    check_text_image_explanation(result[1], gt_explanation)
+    check_nn_explanation(result[1], gt_explanation)
 
 
 def test_check_BER_with_NN_negative():
     filename = _get_NN_test_data('not_ber')
     signal = get_ecg_signal(filename)
-    result = api.check_BER_with_NN(signal)
+    result = api.check_BER_with_NN(signal, save_path='./ECG/NN_based_approach/imgs')
     check_data_type(result, Tuple)
     compare_values(len(result), 2, "Wrong tuple length")
     compare_values(result[0], False, "Failed to discard BER")
     gt_explanation = "BER probability is 0.5973"
-    check_text_image_explanation(result[1], gt_explanation)
+    check_nn_explanation(result[1], gt_explanation)
 
 
 def test_check_MI_with_NN_positive():
     filename = _get_NN_test_data('mi')
     signal = get_ecg_signal(filename)
-    result = api.check_MI_with_NN(signal)
+    result = api.check_MI_with_NN(signal, save_path='./ECG/NN_based_approach/imgs')
     check_data_type(result, Tuple)
     compare_values(len(result), 2, "Wrong tuple length")
     compare_values(result[0], True, "Failed to recognize MI")
     gt_explanation = "MI probability is 0.9953"
-    check_text_image_explanation(result[1], gt_explanation)
+    check_nn_explanation(result[1], gt_explanation)
 
 
 def test_check_MI_with_NN_negative():
     filename = _get_NN_test_data('ber')
     signal = get_ecg_signal(filename)
-    result = api.check_MI_with_NN(signal)
+    result = api.check_MI_with_NN(signal, save_path='./ECG/NN_based_approach/imgs')
     check_data_type(result, Tuple)
     compare_values(len(result), 2, "Wrong tuple length")
     compare_values(result[0], False, "Failed to discard MI")
     gt_explanation = "MI probability is 0.0197"
-    check_text_image_explanation(result[1], gt_explanation)
+    check_nn_explanation(result[1], gt_explanation)
+
+
+def test_check_BER_without_gradcam():
+    filename = _get_NN_test_data('ber')
+    signal = get_ecg_signal(filename)
+    result = api.check_BER_with_NN(signal, gradcam_enabled=False)
+    check_data_type(result, Tuple)
+    compare_values(len(result), 2, "Wrong tuple length")
+    compare_values(result[0], True, "Failed to recognize BER")
+    assert (isinstance(result[1], NNExplanation))
+    len(result[1].images) == 0
+
+
+def test_check_MI_without_gradcam():
+    filename = _get_NN_test_data('mi')
+    signal = get_ecg_signal(filename)
+    result = api.check_MI_with_NN(signal, gradcam_enabled=False)
+    check_data_type(result, Tuple)
+    compare_values(len(result), 2, "Wrong tuple length")
+    compare_values(result[0], True, "Failed to recognize MI")
+    assert(isinstance(result[1], NNExplanation))
+    len(result[1].images) == 0
